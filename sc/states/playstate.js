@@ -133,9 +133,18 @@ function startSong(songName) {
 }
 
 async function startPlay(songName) {
+  // Cargar el JSON de la canción primero para obtener el stage
+  const res = await fetch(`data/songs/${songName}/${songName}.json`);
+  const json = await res.json();
 
-  bf = await new Character('bf', 300, 100, 'BF');
-  
+  // Definir el stageName desde el JSON o usar uno por defecto
+  let stageName = json.song.stage || "stage"; // Usa "stage" si no se especifica
+let bfPos, gfPos, dadPos;
+let camBF, camGF, camDad;
+let cameraSpeed = 1;
+let hideGF = false;
+
+  // Inicialización de variables importantes
   bfNotes = [];
   dadNotes = [];
   notesPassed = 0;
@@ -147,83 +156,111 @@ async function startPlay(songName) {
   ratingsCount = { sick: 0, good: 0, bad: 0, shit: 0 };
   misses = 0;
 
+  // Cargar audio instrumental
   let instPath = `songs/${songName}/Inst.ogg`;
   audioInst = new Audio(instPath);
   audioInst.volume = 0.5;
 
-audioInst.onended = () => {
-  playing = false;
-  pauseBtn.style.display = "none";
-  canvas.style.display = "none";
-  menuDiv.style.display = "block";
-  playBtn.style.display = "none";
+  // Intentar cargar el stage
+  try {
+    const stageData = await loadJSON(`data/stages/${stageName}.json`);
+    const positions = loadStagePositions(stageData);
 
-  // Limpiar arrays para evitar bugs
-  bfNotes = [];
-  dadNotes = [];
-  notesPassed = 0;
-  totalNotes = 0;
+    bfPos = positions.bfPos;
+    gfPos = positions.gfPos;
+    dadPos = positions.dadPos;
 
-  // Opcional: resetear score, estados, etc si quieres
-};
+    camBF = positions.camBF;
+    camGF = positions.camGF;
+    camDad = positions.camDad;
+    cameraSpeed = positions.cameraSpeed;
+    hideGF = positions.hideGF;
+  } catch (e) {
+    console.warn(`⚠ No se pudo cargar el stage "${stageName}". Usando posiciones por defecto.`);
+    bfPos = [300, 100];
+    gfPos = [400, 130];
+    dadPos = [100, 100];
+    camBF = camGF = camDad = [0, 0];
+    cameraSpeed = 1;
+    hideGF = false;
+  }
 
-  fetch(`data/${songName}/${songName}.json`)
-    .then(res => res.json())
-    .then(json => {
-      let speed = json.song.speed || 1;  // Declara aquí speed
-      let speedMultiplier = json.song.speed || 1;
-      fixedSpeed = speedMultiplier * 0.25; // ejemplo: 0.1 px/ms base
+  // Cargar personajes
+  bf = await new Character('bf', bfPos[0], bfPos[1], 'BF');
+  dad = await new Character('dad', dadPos[0], dadPos[1], 'DAD');
+  if (!hideGF)
+    gf = await new Character('gf', gfPos[0], gfPos[1], 'GF');
 
-      scrollDuration = 2000 / speed;
-      baseDistance = Math.abs(bfReceptorY - 30);
+  // Evento al finalizar canción
+  audioInst.onended = async () => {
+    playing = false;
+    pauseBtn.style.display = "none";
+    canvas.style.display = "none";
+    menuDiv.style.display = "block";
+    playBtn.style.display = "none";
 
-      let bpm = json.song.bpm || 120;
-      beatLength = 60000 / bpm;
+    bfNotes = [];
+    dadNotes = [];
+    notesPassed = 0;
+    totalNotes = 0;
+  };
 
-      json.song.notes.forEach(section => {
-        section.sectionNotes.forEach(note => {
-          let time = note[0] + anticipationMs;
-          let lane = note[1];
-          let sustain = note[2];
+  // Configuración de notas
+  let speedMultiplier = json.song.speed || 1;
+  fixedSpeed = speedMultiplier * 0.25;
+  scrollDuration = 2000 / speedMultiplier;
+  baseDistance = Math.abs(bfReceptorY - 30);
 
-          if (section.mustHitSection) {
-            if (lane < 4) lane += 4;
-            else lane -= 4;
-          }
+  // BPM
+  let bpm = json.song.bpm || 120;
+  beatLength = 60000 / bpm;
 
-          let noteObj = { time, lane, sustain, hit: false };
-          if (lane < 4) {
-            dadNotes.push(noteObj);
-          } else {
-            bfNotes.push(noteObj);
-          }
-        });
-      });
+  json.song.notes.forEach(section => {
+    section.sectionNotes.forEach(note => {
+      let time = note[0] + anticipationMs;
+      let lane = note[1];
+      let sustain = note[2];
 
-      totalNotes = bfNotes.length;
+      if (section.mustHitSection) {
+        if (lane < 4) lane += 4;
+        else lane -= 4;
+      }
 
-      bpmSections = [];
-      json.song.notes.forEach(section => {
-        if (section.changeBPM) {
-          let firstNoteTime = section.sectionNotes.length > 0 ? section.sectionNotes[0][0] : 0;
-          bpmSections.push({
-            time: firstNoteTime + anticipationMs,
-            bpm: section.bpm
-          });
-        }
-      });
-
-      if (bpmSections.length === 0)
-        bpmSections.push({ time: 0, bpm: bpm });
-
-      // Inicializar lastBeatTime para evitar loop infinito
-      lastBeatTime = 0;
-      beatCount = 0;
-
-      playBtn.style.display = "block";
+      let noteObj = { time, lane, sustain, hit: false };
+      if (lane < 4) {
+        dadNotes.push(noteObj);
+      } else {
+        bfNotes.push(noteObj);
+      }
     });
-    lastTimestamp = performance.now();
-    requestAnimationFrame(loop);
+  });
+
+  totalNotes = bfNotes.length;
+
+  // BPM dinámico
+  bpmSections = [];
+  json.song.notes.forEach(section => {
+    if (section.changeBPM) {
+      let firstNoteTime = section.sectionNotes.length > 0 ? section.sectionNotes[0][0] : 0;
+      bpmSections.push({
+        time: firstNoteTime + anticipationMs,
+        bpm: section.bpm
+      });
+    }
+  });
+
+  if (bpmSections.length === 0)
+    bpmSections.push({ time: 0, bpm: bpm });
+
+  lastBeatTime = 0;
+  beatCount = 0;
+
+  // Mostrar botón de pausa
+  playBtn.style.display = "block";
+
+  // Iniciar loop
+  lastTimestamp = performance.now();
+  requestAnimationFrame(loop);
 }
 
 // INPUT con lanesHeld

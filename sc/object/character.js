@@ -1,61 +1,58 @@
 export class Character {
   constructor(name) {
-    return new Promise(async (resolve) => {
-      this.name = name;
-      this.image = new Image();
-      this.frames = {};
-      this.frameData = {};
-      this.offsets = {};
-      this.animName = "idle";
-      this.animTimer = 0;
-      this.frameIndex = 0;
-      this.loaded = false;
+    this.name = name;
+    this.image = new Image();
+    this.frames = {};
+    this.frameData = {};
+    this.offsets = {};
+    this.animName = "idle";
+    this.animTimer = 0;
+    this.frameIndex = 0;
+    this.loaded = false;
 
-      this.pos = [0, 0];
-      this.scale = 1;
-      this.flipX = false;
+    this.pos = [0, 0];
+    this.scale = 1;
+    this.flipX = false;
+  }
 
-      const res = await fetch(`data/characters/${name}.json`);
-      this.data = await res.json();
+  async init() {
+    const res = await fetch(`data/characters/${this.name}.json`);
+    this.data = await res.json();
 
-      this.image.src = `images/${this.data.image}.png`;
-      this.pos = this.data.position || [0, 0];
-      this.scale = this.data.scale || 1;
-      this.flipX = this.data.flip_x || false;
+    this.image.src = `images/${this.data.image}.png`;
+    this.pos = this.data.position || [0, 0];
+    this.scale = this.data.scale || 10;
+    this.flipX = this.data.flip_x || false;
 
-      const xmlText = await (await fetch(`images/${this.data.image}.xml`)).text();
-      const parser = new DOMParser();
-      const xml = parser.parseFromString(xmlText, "application/xml");
+    const xmlText = await (await fetch(`images/${this.data.image}.xml`)).text();
+    const parser = new DOMParser();
+    const xml = parser.parseFromString(xmlText, "application/xml");
 
-      for (let anim of this.data.animations) {
-        let name = anim.anim;
-        let prefix = anim.name;
-        let fps = anim.fps;
-        let loop = anim.loop;
-        let offsets = anim.offsets || [0, 0];
+    for (let anim of this.data.animations) {
+      let name = anim.anim;
+      let prefix = anim.name;
+      let fps = anim.fps;
+      let loop = anim.loop;
+      let offsets = anim.offsets || [0, 0];
 
-        let foundFrames = Array.from(xml.querySelectorAll("SubTexture"))
-          .filter(n => n.getAttribute("name").startsWith(prefix));
+      let foundFrames = Array.from(xml.querySelectorAll("SubTexture"))
+        .filter(n => n.getAttribute("name").startsWith(prefix));
 
-        if (foundFrames.length === 0) {
-          let single = xml.querySelector(`SubTexture[name="${prefix}"]`);
-          if (single) foundFrames = [single];
-        }
-
-        this.frames[name] = foundFrames;
-        this.frameData[name] = { fps, loop };
-        this.offsets[name] = offsets;
+      if (foundFrames.length === 0) {
+        let single = xml.querySelector(`SubTexture[name="${prefix}"]`);
+        if (single) foundFrames = [single];
       }
 
-      this.loaded = true;
+      this.frames[name] = foundFrames;
+      this.frameData[name] = { fps, loop };
+      this.offsets[name] = offsets;
+    }
 
-      // 💃 Inicializa con idle si existe
-      if (this.frames["idle"]) {
-        this.play("idle");
-      }
+    this.loaded = true;
 
-      resolve(this);
-    });
+    if (this.frames["idle"]) {
+      this.play("idle");
+    }
   }
 
   play(anim) {
@@ -66,7 +63,6 @@ export class Character {
     }
   }
 
-  // ✅ NUEVO: Reproduce animación idle si existe
   dance() {
     if (this.frames["idle"]) {
       this.play("idle");
@@ -101,17 +97,25 @@ export class Character {
 
     const [ox, oy] = this.offsets[this.animName] || [0, 0];
 
-    const drawX = this.pos[0] + ox - (fw * this.scale) / 2;
-    const drawY = this.pos[1] + oy - (fh * this.scale) / 2;
+    const drawX = this.pos[0] + ox;
+    const drawY = this.pos[1] + oy;
 
     ctx.save();
+
+    // Mover al centro del personaje
+    ctx.translate(drawX, drawY);
+
     if (this.flipX) {
-      ctx.translate(drawX + fw * this.scale, 0);
-      ctx.scale(-1, 1);
-      ctx.drawImage(this.image, fx, fy, fw, fh, 0, drawY, fw * this.scale, fh * this.scale);
-    } else {
-      ctx.drawImage(this.image, fx, fy, fw, fh, drawX, drawY, fw * this.scale, fh * this.scale);
+      ctx.scale(-1, 1); // voltear horizontalmente
     }
+
+    ctx.drawImage(
+      this.image,
+      fx, fy, fw, fh,
+      -fw * this.scale / 2, -fh * this.scale / 2,
+      fw * this.scale, fh * this.scale
+    );
+
     ctx.restore();
   }
 }
