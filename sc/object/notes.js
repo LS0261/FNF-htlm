@@ -38,5 +38,17 @@ fetch("images/NOTE_assets.xml")
     NotesAssets.framesMapColored[1] = xml.querySelector('SubTexture[name="blue0000"]');
     NotesAssets.framesMapColored[2] = xml.querySelector('SubTexture[name="green0000"]');
     NotesAssets.framesMapColored[3] = xml.querySelector('SubTexture[name="red0000"]');
+    NotesAssets.holdPieces = {
+      0: xml.querySelector('SubTexture[name="purple hold piece0000"]'),
+      1: xml.querySelector('SubTexture[name="blue hold piece0000"]'),
+      2: xml.querySelector('SubTexture[name="green hold piece0000"]'),
+      3: xml.querySelector('SubTexture[name="red hold piece0000"]')
+    };
+    NotesAssets.holdEnds = {
+      0: xml.querySelector('SubTexture[name="pruple end hold0000"]'), // typo en el XML: "pruple"
+      1: xml.querySelector('SubTexture[name="blue hold end0000"]'),
+      2: xml.querySelector('SubTexture[name="green hold end0000"]'),
+      3: xml.querySelector('SubTexture[name="red hold end0000"]')
+    };
     NotesAssets.framesLoaded = true;
   });

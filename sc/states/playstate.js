@@ -1,3 +1,5 @@
+import { Character } from "../object/character.js";
+
 const canvas = document.getElementById("canvas");
 const ctx = canvas.getContext("2d");
 const menuDiv = document.getElementById("menu");
@@ -14,14 +16,36 @@ window.addEventListener('resize', () => {
   canvas.height = H;
 });
 
+let fixedSpeed = 1.0;
+let bpmSections = [];
+
 let bfNotes = [];
 let dadNotes = [];
 let notesPassed = 0, totalNotes = 0;
 let scrollDuration = 3000;
 let anticipationMs = -200;
-
+let lastTimestamp = 0;
 let audioInst;
 let playing = false;
+
+let bf = null;
+let gf = null;
+let dad = null;
+
+const keyToLane = {
+  "ArrowLeft": 0,
+  "ArrowDown": 1,
+  "ArrowUp": 2,
+  "ArrowRight": 3
+};
+
+const lanesHeld = [
+  { held: false, holdNote: null },
+  { held: false, holdNote: null },
+  { held: false, holdNote: null },
+  { held: false, holdNote: null }
+];
+
 let hitSound = new Audio("hitsound.ogg");
 hitSound.volume = 0.5;
 let ratingSprites = [];
@@ -38,11 +62,9 @@ let score = 0;
 let ratingsCount = { sick: 0, good: 0, bad: 0, shit: 0 };
 let misses = 0;
 
-let bfReceptorY = H - 400;
 let dadReceptorY = 100;
+let bfReceptorY = dadReceptorY;
 let baseDistance = Math.abs(bfReceptorY - 50);
-
-let lanesHeld = [false, false, false, false];
 
 // ▶ PLAY BUTTON
 const playBtn = document.createElement("button");
@@ -110,7 +132,10 @@ function startSong(songName) {
   startPlay(songName);
 }
 
-function startPlay(songName) {
+async function startPlay(songName) {
+
+  bf = await new Character('bf', 300, 100, 'BF');
+  
   bfNotes = [];
   dadNotes = [];
   notesPassed = 0;
@@ -145,7 +170,10 @@ audioInst.onended = () => {
   fetch(`data/${songName}/${songName}.json`)
     .then(res => res.json())
     .then(json => {
-      let speed = json.song.speed || 1;
+      let speed = json.song.speed || 1;  // Declara aquí speed
+      let speedMultiplier = json.song.speed || 1;
+      fixedSpeed = speedMultiplier * 0.25; // ejemplo: 0.1 px/ms base
+
       scrollDuration = 2000 / speed;
       baseDistance = Math.abs(bfReceptorY - 30);
 
@@ -194,13 +222,16 @@ audioInst.onended = () => {
 
       playBtn.style.display = "block";
     });
+    lastTimestamp = performance.now();
+    requestAnimationFrame(loop);
 }
 
 // INPUT con lanesHeld
 canvas.addEventListener("mousedown", e => handleMouseTouch(e.clientX));
 canvas.addEventListener("mousemove", e => { if (e.buttons) handleMouseTouch(e.clientX); });
-canvas.addEventListener("mouseup", () => lanesHeld = [false, false, false, false]);
-
+canvas.addEventListener("mouseup", () => {
+  lanesHeld = lanesHeld.map(() => ({ held: false, holdNote: null }));
+});
 canvas.addEventListener("touchstart", e => {
   handleTouches(e.touches);
   e.preventDefault();
@@ -211,16 +242,62 @@ canvas.addEventListener("touchmove", e => {
   e.preventDefault();
 }, { passive: false });
 
-canvas.addEventListener("touchend", () => lanesHeld = [false, false, false, false], { passive: false });
+canvas.addEventListener("touchend", () => {
+  for (let i = 0; i < 4; i++) {
+    if (lanesHeld[i].held && lanesHeld[i].holdNote) {
+      const note = lanesHeld[i].holdNote;
+      const songPos = getSongPos();
+      if (songPos >= note.time && songPos <= note.time + note.sustain + 150) {
+        score += 50;
+        notesPassed++;
+        addRatingSprite(30);
+      } else {
+        misses++;
+      }
+      const idx = bfNotes.indexOf(note);
+      if (idx !== -1) bfNotes.splice(idx, 1);
+    }
+    lanesHeld[i].held = false;
+    lanesHeld[i].holdNote = null;
+  }
+});
+
+document.addEventListener("keydown", (e) => {
+  const lane = keyToLane[e.code];
+  if (lane !== undefined) {
+    if (!lanesHeld[lane].held) {
+      lanesHeld[lane].held = true;
+      tryHitLane(lane);
+    }
+  }
+});
+
+document.addEventListener("keyup", (e) => {
+  const lane = keyToLane[e.code];
+  if (lane !== undefined) {
+    if (lanesHeld[lane].held) {
+      lanesHeld[lane].held = false;
+
+      // Si había un holdNote y se soltó antes de tiempo: cuenta como fallo
+      const heldNote = lanesHeld[lane].holdNote;
+      if (heldNote && getSongPos() < heldNote.time + heldNote.sustain) {
+        const idx = bfNotes.indexOf(heldNote);
+        if (idx !== -1) bfNotes.splice(idx, 1);
+        misses++;
+        lanesHeld[lane].holdNote = null;
+      }
+    }
+  }
+});
 
 function handleMouseTouch(x) {
   let spacing = W / 4;
   let startX = (W - spacing * 4) / 2;
   let lane = Math.floor((x - startX) / spacing);
   if (lane >= 0 && lane < 4) {
-    if (!lanesHeld[lane]) {
-      tryHitLane(lane, getSongPos(), bfReceptorY);
-      lanesHeld[lane] = true;
+    if (!lanesHeld[lane].held) {
+      tryHitLane(lane + 4, getSongPos(), bfReceptorY);
+      lanesHeld[lane].held = true;
     }
   }
 }
@@ -228,15 +305,21 @@ function handleMouseTouch(x) {
 function handleTouches(touches) {
   let spacing = W / 4;
   let startX = (W - spacing * 4) / 2;
-  let lanesThisTouch = [false, false, false, false];
+  let lanesThisTouch = [
+    { held: false, holdNote: null },
+    { held: false, holdNote: null },
+    { held: false, holdNote: null },
+    { held: false, holdNote: null }
+  ];
 
   for (let t of touches) {
     let lane = Math.floor((t.clientX - startX) / spacing);
     if (lane >= 0 && lane < 4) {
-      if (!lanesHeld[lane]) {
-        tryHitLane(lane, getSongPos(), bfReceptorY);
+      if (!lanesHeld[lane].held) {
+        tryHitLane(lane + 4, getSongPos(), bfReceptorY);
+        lanesThisTouch[lane] = { held: true, holdNote: null }; // Aquí puedes mejorar para holdNote
       }
-      lanesThisTouch[lane] = true;
+      lanesThisTouch[lane].held = true;
     }
   }
   lanesHeld = lanesThisTouch;
@@ -265,10 +348,11 @@ function addRatingSprite(diff) {
 }
 
 function calculateNoteY(note, songPos, receptorY, upwards) {
-  let speed = baseDistance / scrollDuration;
+  let speed = fixedSpeed;
+  let timeDiff = note.time - songPos;
   return upwards
-    ? receptorY + (note.time - songPos) * speed
-    : receptorY - (note.time - songPos) * speed;
+    ? receptorY + timeDiff * speed
+    : receptorY - timeDiff * speed;
 }
 
 // Variables para HUD zoom + metronome
@@ -281,10 +365,21 @@ let beatCount = 0;
 let metronome1 = new Audio("sounds/metronome1.ogg");
 let metronome2 = new Audio("sounds/metronome2.ogg");
 
-function loop() {
-  requestAnimationFrame(loop);
+function loop(timestamp) {
 
-  if (!playing) return; // Pausar loop si no está playing
+  const delta = (timestamp - lastTimestamp) / 1000;
+  lastTimestamp = timestamp;
+
+  requestAnimationFrame(loop);
+  if (!playing) return;
+
+
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.clearRect(0, 0, W, H);
+
+  if (bf && bf.update) bf.update(delta);
+
+  if (bf && bf.draw) bf.draw(ctx);
 
   let songPos = getSongPos();
 
@@ -301,58 +396,65 @@ function loop() {
     }
   }
 
-  // Detección beat con tolerancia
   if ((songPos - lastBeatTime) >= (currentBeatLength - 5)) {
     beatCount = (beatCount + 1) % 4;
-
     if (beatCount === 0) {
       hudZoom = 1.1;
       metronome1.currentTime = 0;
-      //metronome1.play();
     } else {
       hudZoom = 1.05;
       metronome2.currentTime = 0;
-      //metronome2.play();
     }
-
     hudZoomTarget = 1;
     lastBeatTime += currentBeatLength;
-
-    // Para evitar que lastBeatTime se quede muy atrasado (en caso de saltos)
     if (songPos - lastBeatTime > currentBeatLength) {
       lastBeatTime = songPos;
     }
+    if (bf && bf.dance) bf.dance();
   }
 
-  // Suavizar zoom hacia 1
   hudZoom += (hudZoomTarget - hudZoom) * 0.1;
-
-  // Reset transform y limpiar
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.clearRect(0, 0, W, H);
-
-  // Aplicar zoom HUD
   ctx.translate(W / 2, H / 2);
   ctx.scale(hudZoom, hudZoom);
   ctx.translate(-W / 2, -H / 2);
 
+  // 🔄 Hold activo
+  for (let i = 0; i < 4; i++) {
+    if (lanesHeld[i].held && lanesHeld[i].holdNote) {
+      const note = lanesHeld[i].holdNote;
+      if (songPos > note.time + note.sustain + 100) {
+        misses++;
+        let idx = bfNotes.indexOf(note);
+        if (idx !== -1) bfNotes.splice(idx, 1);
+        lanesHeld[i].held = false;
+        lanesHeld[i].holdNote = null;
+      }
+    }
+  }
+
+  // ❌ Eliminar notas no tocadas a tiempo
+  for (let i = bfNotes.length - 1; i >= 0; i--) {
+    let note = bfNotes[i];
+    if (!note.hit && songPos > note.time + note.sustain + 200) {
+      bfNotes.splice(i, 1);
+      misses++;
+    }
+  }
+
   if (NotesAssets.imageLoaded && NotesAssets.framesLoaded) {
-    // Por esto:
-    let strumSpacing = Math.min(W * 0.08, 100);   // separación entre lanes (máx 100px)
-    let strumSize = strumSpacing * 0.9;           // tamaño de cada strum
+    let strumSpacing = Math.min(W * 0.08, 100);
+    let strumSize = strumSpacing * 1;
     let holdWidth = strumSize * 0.4;
+    let startX_opp = W * 0.1;
+    let startX_player = W - (strumSpacing * 4) - W * 0.1;
 
-    // Posiciones separadas:
-    let startX_opp = W * 0.1;                      // oponente izquierda (10% ancho)
-    let startX_player = W - (strumSpacing * 4) - W * 0.1;  // player derecha (10% desde derecha)4) / 2;
-
-    // Oponente - izquierda
     renderStrums(dadReceptorY, strumSize, startX_opp, strumSpacing, laneStates, false);
     renderNotes(dadNotes, false, startX_opp, strumSpacing, strumSize, holdWidth, dadReceptorY, songPos, true);
 
-    // Player - derecha
-    renderNotes(bfNotes, true, startX_player, strumSpacing, strumSize, holdWidth, bfReceptorY, songPos, false);
     renderStrums(bfReceptorY, strumSize, startX_player, strumSpacing, laneStates, true);
+    renderNotes(bfNotes, true, startX_player, strumSpacing, strumSize, holdWidth, bfReceptorY, songPos, true);
 
     for (let i = ratingSprites.length - 1; i >= 0; i--) {
       let s = ratingSprites[i];
@@ -375,7 +477,20 @@ function loop() {
     ctx.fillText(`${notesPassed}/${totalNotes}`, 10, 80);
   }
 }
+function update(delta) {
+  beatTimer += delta;
+  if (beatTimer >= 60 / bpm) {
+    beatTimer = 0;
+    if (bf) bf.play("idle"); // animación de beat
+  }
 
+  if (bf) bf.update(delta);
+}
+function draw() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  if (bf) bf.draw(ctx);
+}
 function renderStrums(y, size, startX, spacing, laneStates, isPlayer) {
   for (let i = 0; i < 4; i++) {
     let dir = laneDirs[i];
@@ -427,98 +542,116 @@ function renderStrums(y, size, startX, spacing, laneStates, isPlayer) {
       }
     }
   }
+  if (bf) {
+    bf.update();
+    bf.draw(ctx);
+  }
 }
 
 function renderNotes(notes, isPlayer, startX, spacing, size, holdWidth, receptorY, songPos, upwards) {
   for (let i = notes.length - 1; i >= 0; i--) {
-    let note = notes[i];
-    let lane = isPlayer ? note.lane - 4 : note.lane;
-    let yStart = calculateNoteY(note, songPos, receptorY, upwards);
-    let x = startX + lane * spacing;
+    const note = notes[i];
+    const lane = isPlayer ? note.lane - 4 : note.lane;
+    const x = startX + lane * spacing;
+    const laneIndex = lane % 4;
 
-    // Saltar si ya pasó y no es sustain
-    if (note.time + scrollDuration < songPos && !note.sustain) {
-      notes.splice(i, 1);
-      notesPassed++;
-      misses++;
-      continue;
-    }
+    const yStart = calculateNoteY(note, songPos, receptorY, upwards);
 
-    // Dibujar sustain
     if (note.sustain > 0) {
-      let sustainEndTime = note.time + note.sustain;
-      let yEnd = calculateNoteY({ time: sustainEndTime }, songPos, receptorY, upwards);
-      let height = Math.abs(yEnd - yStart);
 
-      ctx.fillStyle = isPlayer ? "rgba(0,255,0,0.7)" : "rgba(255,0,0,0.7)";
-      ctx.fillRect(x + (size - holdWidth) / 2, Math.min(yStart, yEnd), holdWidth, height);
+      // El hold visible empieza en el tiempo actual (o en note.time si aún no ha llegado)
+      const holdVisibleStartTime = Math.max(note.time, songPos);
+      const sustainEndTime = note.time + note.sustain;
+
+      const yStartHold = calculateNoteY({ time: holdVisibleStartTime }, songPos, receptorY, upwards);
+      const yEnd = calculateNoteY({ time: sustainEndTime }, songPos, receptorY, upwards);
+
+      const bodyHeight = Math.abs(yEnd - yStartHold);
+      const bodyY = Math.min(yStartHold, yEnd) + size / 2;
+
+      // === Dibujar el cuerpo del hold (repetir pieza verticalmente) ===
+      const piece = NotesAssets.holdPieces[laneIndex];
+      if (piece) {
+        const px = +piece.getAttribute("x");
+        const py = +piece.getAttribute("y");
+        const pw = +piece.getAttribute("width");
+        const ph = +piece.getAttribute("height");
+
+        const drawHeight = bodyHeight - size;
+        let drawn = 0;
+        while (drawn < drawHeight) {
+          const h = Math.min(ph, drawHeight - drawn);
+          ctx.drawImage(
+            NotesAssets.notesImage,
+            px, py, pw, h,
+            x + (size - holdWidth) / 2, bodyY + drawn,
+            holdWidth, h
+          );
+          drawn += h;
+        }
+      }
+
+      // === Dibujar la parte final ===
+      const end = NotesAssets.holdEnds[laneIndex];
+      if (end) {
+        const ex = +end.getAttribute("x");
+        const ey = +end.getAttribute("y");
+        const ew = +end.getAttribute("width");
+        const eh = +end.getAttribute("height");
+        ctx.drawImage(
+          NotesAssets.notesImage,
+          ex, ey, ew, eh,
+          x + (size - holdWidth) / 2, yEnd,
+          holdWidth, size / 2
+        );
+      }
     }
 
-    // Dibujar nota principal
+    // === Cabeza de la nota ===
     if (note.time >= songPos - scrollDuration) {
-      let laneIndex = lane % 4;
-      if (laneIndex < 0) laneIndex += 4;
-
-      // 🔁 Asegurar que siempre se use framesMapColored
-      let frame = NotesAssets.framesMapColored[laneIndex];
+      const frame = NotesAssets.framesMapColored[laneIndex];
       if (frame) {
-        let fx = parseInt(frame.getAttribute("x"));
-        let fy = parseInt(frame.getAttribute("y"));
-        let fw = parseInt(frame.getAttribute("width"));
-        let fh = parseInt(frame.getAttribute("height"));
+        const fx = +frame.getAttribute("x");
+        const fy = +frame.getAttribute("y");
+        const fw = +frame.getAttribute("width");
+        const fh = +frame.getAttribute("height");
         ctx.drawImage(NotesAssets.notesImage, fx, fy, fw, fh, x, yStart, size, size);
       }
     }
-    if (!isPlayer) {
-      if (songPos >= note.time) {
-        notes.splice(i, 1); // Nota desaparece justo al llegar el tiempo 
-        notesPassed++;
-      }
+
+    if (!isPlayer && songPos >= note.time) {
+      notes.splice(i, 1);
+      notesPassed++;
     }
   }
 }
 
-function tryHitLane(lane, songPos, receptorY) {
-  let notesArray = bfNotes;
-  let targetLane = lane;
+function tryHitLane(lane) {
+  const songPos = getSongPos();
+  for (let i = 0; i < bfNotes.length; i++) {
+    const note = bfNotes[i];
+    if (note.lane - 4 !== lane) continue;
 
-  // Evitar tocar las notas del oponente
-  if (lane < 4) return;
-
-  targetLane = lane - 4;
-
-  // Buscar nota más cercana
-  let closestNoteIndex = -1;
-  let closestDiff = Infinity;
-
-  for (let i = 0; i < notesArray.length; i++) {
-    let note = notesArray[i];
-    if (note.lane !== lane) continue;
-
-    let diff = Math.abs(note.time - songPos);
-    if (diff < 200 && diff < closestDiff) {
-      closestNoteIndex = i;
-      closestDiff = diff;
+    const diff = Math.abs(note.time - songPos);
+    if (diff <= hitWindow) {
+      if (note.sustain > 0) {
+        lanesHeld[lane].holdNote = note;
+      } else {
+        bfNotes.splice(i, 1);
+        score += 100;
+        addRatingSprite();
+        notesPassed++;
+      }
+      return;
     }
   }
 
-  if (closestNoteIndex !== -1) {
-    let note = notesArray[closestNoteIndex];
-    notesArray.splice(closestNoteIndex, 1);
-    notesPassed++;
-    addRatingSprite(closestDiff);
-    score += 10;
-    laneStates[targetLane].state = "confirm";
-    laneStates[targetLane].timer = 10;
-  } else {
-    misses++;
-    laneStates[targetLane].state = "press";
-    laneStates[targetLane].timer = 10;
-  }
+  // No acertaste ninguna nota
+  misses++;
 }
 
 // Carga de imagenes, sprites y ratings aquí...
 // (asume que ya está hecho)
 
 loadMenu();
-loop();
+requestAnimationFrame(loop);
