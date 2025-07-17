@@ -24,7 +24,7 @@ NotesAssets.ratingsImages.good.src = "images/good.png";
 NotesAssets.ratingsImages.bad.src = "images/bad.png";
 NotesAssets.ratingsImages.shit.src = "images/shit.png";
 
-/// Parseo de XML para obtener frames
+// Parseo de XML para obtener frames
 fetch("images/NOTE_assets.xml")
   .then(res => res.text())
   .then(xmlText => {

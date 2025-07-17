@@ -312,7 +312,7 @@ function loop() {
     } else {
       hudZoom = 1.05;
       metronome2.currentTime = 0;
-      //ametronome2.play();
+      //metronome2.play();
     }
 
     hudZoomTarget = 1;
