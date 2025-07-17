@@ -120,7 +120,7 @@ function loadMenu() {
       });
     })
     .catch(err => {
-      console.error("Error cargando weekList XD.json:", err);
+      console.error("Error cargando weekList.json:", err);
       menuDiv.innerHTML = "<p>Error cargando weeks.</p>";
     });
 }
