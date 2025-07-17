@@ -1,0 +1,4 @@
+0: focus dad
+1: focus bf
+2: focus gf
+else reset

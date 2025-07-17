@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>FNF Web Player</title>
+  <style>
+    body {
+      background: #000;
+      color: #fff;
+      margin: 0;
+      overflow: hidden;
+      font-family: sans-serif;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+    }
+    #menu {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    #menu button {
+      margin: 5px;
+      padding: 10px 20px;
+      font-size: 18px;
+    }
+    canvas {
+      display: none;
+      background: #000;
+    }
+  </style>
+</head>
+<body>
+  <div id="menu">
+    <h2>Cargando canciones...</h2>
+  </div>
+  <canvas id="canvas"></canvas>
+
+  <!-- tus assets js -->
+  <script src="sc/object/notes.js"></script>
+  <script src="sc/states/playstate.js"></script>
+  <script src="sc/states/substates/pausemenusubstate.js"></script>
+</body>
+</html>

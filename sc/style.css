@@ -1,0 +1,67 @@
+body {
+  background: #000;
+  color: #0f0;
+  font-family: monospace;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+  margin: 0;
+}
+
+.info {
+  text-align: center;
+  margin-top: 10px;
+}
+
+.beat-bar {
+  position: relative;
+  width: 80%;
+  max-width: 400px;
+  height: 4px;
+  background: #333;
+  margin: 20px 0;
+  overflow: hidden;
+}
+
+.beat-indicator {
+  position: absolute;
+  top: -4px;
+  width: 2px;
+  height: 12px;
+  background: #0f0;
+  left: 0;
+  transition: left 0.05s;
+}
+
+.container {
+  position: relative;
+  width: 90%;
+  max-width: 400px;
+  height: auto;
+}
+
+#cover {
+  width: 100%;
+  height: auto;
+  transition: transform 0.5s;
+}
+
+/* Posiciona el anillo en la esquina inferior izquierda */
+.progress-ring {
+  position: absolute;
+  bottom: 5%;
+  left: 5%;
+  width: 30px;
+  height: 30px;
+}
+
+/* Anillo con borde difuso blanco */
+.progress-ring__circle {
+  transform: rotate(-90deg);
+  transform-origin: 50% 50%;
+  stroke: rgba(0,0,0,0.3); /* Más transparente */
+  filter: drop-shadow(0 0 3px white);
+  transition: stroke-dashoffset 0.1s;
+}

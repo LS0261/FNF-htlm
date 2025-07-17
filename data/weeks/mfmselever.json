@@ -1,0 +1,15 @@
+{
+	"songs": [
+		["Casanova", "selever", [148, 35, 79]]
+	],
+	"hiddenUntilUnlocked": false,
+	"hideFreeplay": false,
+	"weekBackground": "stage",
+	"difficulties": "Hard",
+	"weekCharacters": ["dad", "bf", "gf"],
+	"storyName": "Daddy Dearest",
+	"weekName": "Week 1",
+	"hideStoryMode": true,
+	"weekBefore": "tutorial",
+	"startUnlocked": true
+}

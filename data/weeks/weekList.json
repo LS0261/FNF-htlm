@@ -1,0 +1,64 @@
+{
+  "weeks": [
+    {
+      "file": "DECEIVER.json",
+      "weekName": "Custom Week",
+      "songs": [
+        [
+          "deceiver-v4",
+          "fraud-icons",
+          [
+            66,
+            40,
+            155
+          ]
+        ]
+      ]
+    },
+    {
+      "file": "herobrine.json",
+      "weekName": "Custom Week",
+      "songs": [
+        [
+          "no-escape",
+          "dad",
+          [
+            146,
+            113,
+            253
+          ]
+        ]
+      ]
+    },
+    {
+      "file": "ls.json",
+      "weekName": "Custom Week",
+      "songs": [
+        [
+          "tal-vez-c",
+          "face",
+          [
+            146,
+            113,
+            253
+          ]
+        ]
+      ]
+    },
+    {
+      "file": "mfmselever.json",
+      "weekName": "Week 1",
+      "songs": [
+        [
+          "Casanova",
+          "selever",
+          [
+            148,
+            35,
+            79
+          ]
+        ]
+      ]
+    }
+  ]
+}
