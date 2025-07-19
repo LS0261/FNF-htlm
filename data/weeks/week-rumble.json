@@ -1,0 +1,31 @@
+{
+	"songs": [
+		[
+			"bopeebo-rumble",
+			"dad",
+			[
+				195,
+				113,
+				255
+			]
+		]
+	],
+	"hideFreeplay": false,
+	"weekBackground": "stage",
+	"difficulties": "",
+	"weekCharacters": [
+		"dad",
+		"bf",
+		"gf"
+	],
+	"storyName": "haha modcharts go brrrr",
+	"weekName": "week-rumble",
+	"freeplayColor": [
+		146,
+		113,
+		253
+	],
+	"hideStoryMode": false,
+	"weekBefore": "tutorial",
+	"startUnlocked": true
+}

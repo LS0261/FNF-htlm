@@ -4,6 +4,8 @@ import Bar from '../object/bar.js';
 import HealthIcon  from '../object/healthIcon.js';
 import ClientPrefs from '../backend/clientPrefs.js';
 
+const { lua, lauxlib, lualib, to_luastring } = fengari;
+
 const canvas = document.getElementById("canvas");
 const ctx = canvas.getContext("2d");
 const menuDiv = document.getElementById("menu");
@@ -35,6 +37,9 @@ window.addEventListener('resize', () => {
   repositionHUD(); // 💡 reposicionar elementos
 });
 
+const L = lauxlib.luaL_newstate();
+lualib.luaL_openlibs(L);
+
 let fixedSpeed = 1.0;
 let bpmSections = [];
 
@@ -47,6 +52,7 @@ let scrollDuration = 3000;
 let anticipationMs = 0;
 let lastTimestamp = 0;
 let audioInst;
+let audioVoices;
 let playing = false;
 
 let playerHealth = 50;
@@ -113,6 +119,7 @@ document.body.appendChild(playBtn);
 playBtn.style.display = "none";
 playBtn.onclick = () => {
   if (audioInst) audioInst.play();
+  if (audioVoices) audioVoices.play();
   playing = true;
   playBtn.style.display = "none";
 };
@@ -130,12 +137,21 @@ pauseBtn.style.zIndex = "1000";
 pauseBtn.style.display = "none"; // solo visible en PlayState
 document.body.appendChild(pauseBtn);
 pauseBtn.onclick = () => {
+  // Pausar música
+  audioInst.pause();
+  audioVoices.pause();
   playing = false;
-  openPauseMenu(audioInst, () => { 
-    playing = true; 
-    pauseBtn.style.display = "block"; // Mostrar el botón al reanudar
+
+  // Ocultar el botón mientras está pausado
+  pauseBtn.style.display = "none";
+
+  // Abrir el menú de pausa y reanudar cuando termine
+  openPauseMenu(audioInst, () => {
+    audioInst.play();
+    audioVoices.play();
+    playing = true;
+    pauseBtn.style.display = "block";
   });
-  pauseBtn.style.display = "none"; // Ocultar botón al pausar
 };
 
 function loadMenu() {
@@ -190,10 +206,11 @@ let hideGF = false;
   ratingsCount = { sick: 0, good: 0, bad: 0, shit: 0 };
   misses = 0;
 
-  // Cargar audio instrumental
-  let instPath = `songs/${songName}/Inst.ogg`;
   audioInst = new Audio(Paths.songInst(songName)); // ✅ CORRECTO
   audioInst.volume = 0.5;
+
+  audioVoices = new Audio(Paths.songVoices(songName));
+  audioVoices.volume = 0.5;
 
   // Intentar cargar el stage
   try {
@@ -310,6 +327,62 @@ uiGroup.push(iconP2);
   requestAnimationFrame(loop);
 }
 
+export async function loadModchartLua(path) {
+  const res = await fetch(path);
+  const luaCode = await res.text();
+  lauxlib.luaL_dostring(L, to_luastring(luaCode));
+}
+export function callLuaOnUpdate(elapsed) {
+  lua.lua_getglobal(L, to_luastring("onUpdate"));
+  if (lua.lua_isfunction(L, -1)) {
+    lua.lua_pushnumber(L, elapsed);
+    lua.lua_call(L, 1, 0);
+  } else {
+    lua.lua_pop(L, 1);
+  }
+}
+// 📌 Función JS → accesible desde Lua: setHudZoom(value)
+lua.lua_pushjsfunction(L, (L) => {
+  const zoom = lua.lua_tonumber(L, 1);
+  if (typeof hud !== "undefined") hud.zoom = zoom;
+  return 0;
+});
+lua.lua_setglobal(L, to_luastring("setHudZoom"));
+
+// 📌 setStrumAngle(index, angle)
+lua.lua_pushjsfunction(L, (L) => {
+  const i = lua.lua_tointeger(L, 1);
+  const angle = lua.lua_tonumber(L, 2);
+  if (strumLineNotes && strumLineNotes[i]) {
+    strumLineNotes[i].angle = angle;
+  }
+  return 0;
+});
+lua.lua_setglobal(L, to_luastring("setStrumAngle"));
+
+// 📌 setStrumX(index, x)
+lua.lua_pushjsfunction(L, (L) => {
+  const i = lua.lua_tointeger(L, 1);
+  const x = lua.lua_tonumber(L, 2);
+  if (strumLineNotes && strumLineNotes[i]) {
+    strumLineNotes[i].x = x;
+  }
+  return 0;
+});
+lua.lua_setglobal(L, to_luastring("setStrumX"));
+
+// 📌 triggerAnim(char, anim)
+lua.lua_pushjsfunction(L, (L) => {
+  const char = lua.lua_tojsstring(L, 1);
+  const anim = lua.lua_tojsstring(L, 2);
+
+  if (char === "bf" && typeof boyfriend !== "undefined") boyfriend.playAnim(anim, true);
+  if (char === "dad" && typeof dad !== "undefined") dad.playAnim(anim, true);
+  if (char === "gf" && typeof gf !== "undefined") gf.playAnim(anim, true);
+
+  return 0;
+});
+lua.lua_setglobal(L, to_luastring("triggerAnim"));
 // INPUT con lanesHeld
 canvas.addEventListener("mousedown", e => handleMouseTouch(e.clientX));
 canvas.addEventListener("mousemove", e => { if (e.buttons) handleMouseTouch(e.clientX); });

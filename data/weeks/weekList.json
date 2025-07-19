@@ -59,6 +59,21 @@
           ]
         ]
       ]
+    },
+    {
+      "file": "week-rumble.json",
+      "weekName": "week-rumble",
+      "songs": [
+        [
+          "bopeebo-rumble",
+          "dad",
+          [
+            195,
+            113,
+            255
+          ]
+        ]
+      ]
     }
   ]
 }
