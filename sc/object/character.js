@@ -53,6 +53,8 @@ export class Character {
     if (this.frames["idle"]) {
       this.play("idle");
     }
+    this.healthIcon = this.data.healthicon || this.name;
+
   }
 
   play(anim) {
