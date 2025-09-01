@@ -17,15 +17,21 @@ const Paths = {
   // Sonidos genéricos
   sound: (name) => `sounds/${name}.ogg`,
 
+  music: (name) => `music/${name}.ogg`, // antes decía 'sounds/'
+
   // Datos genéricos tipo JSON o XML
   json: (path) => `data/${path}.json`,
   xml: (path) => `data/${path}.xml`,
+  txt: (path) => `data/${path}.txt`,
 
   // Archivos estáticos en la raíz o directorio base
   file: (path) => `${path}`,
 
   // Por ejemplo: notas tipo TextureAtlas
   textureAtlas: (name) => `images/${name}.xml`,
+
+  // 🔥 Ruta para archivos Lua de stages
+  luaStage: (name) => `scripts/stages/${name}.lua`,
 };
 
 export default Paths;
